@@ -1,6 +1,6 @@
 # Streamlit & utilities
 streamlit==1.29.0
-streamlit-folium==0.10.1
+streamlit-folium==0.18.1
 
 # Data manipulation
 pandas==2.1.1

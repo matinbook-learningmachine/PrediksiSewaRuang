@@ -1,3 +1,46 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression, ElasticNet, PassiveAggressiveRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from lightgbm import LGBMRegressor
+import xgboost as xgb
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+import os
+
+# ==========================
+# Load model Random Forest
+# ==========================
+MODEL_PATH = "model/model_rf_hargapenawaran.joblib"
+if os.path.exists(MODEL_PATH):
+    model_rf = joblib.load(MODEL_PATH)
+    st.session_state["model_rf"] = model_rf
+else:
+    st.warning("⚠️ Model belum tersedia!")
+
+# ==========================
+# Sidebar Navigasi
+# ==========================
+st.sidebar.title("📌 Navigasi")
+page = st.sidebar.radio("Pilih Halaman:", ["Beranda", "Evaluasi Model", "Prediksi"])
+
+# ==========================
+# Halaman 1: Beranda
+# ==========================
+if page == "Beranda":
+    st.title("🏠 Beranda")
+    st.markdown("""
+    Selamat datang di aplikasi Prediksi Harga Penawaran.  
+    Gunakan modul **Evaluasi Model** untuk mengecek performa model.  
+    Gunakan modul **Prediksi** untuk menghitung harga baru dari input variabel.
+    """)
+
 # ==========================
 # Halaman 2: Evaluasi Model
 # ==========================
@@ -7,7 +50,7 @@ elif page == "Evaluasi Model":
         "Upload dataset CSV/XLSX dengan kolom target 'HARGAPENAWARAN'", 
         type=["csv","xlsx"]
     )
-    
+
     if uploaded_file:
         try:
             if uploaded_file.name.endswith(".csv"):
@@ -24,26 +67,14 @@ elif page == "Evaluasi Model":
             target = "HARGAPENAWARAN"
             X = df.drop(columns=[target])
             y = df[target]
-            
-            # Ambil kolom numerik dengan variasi
             X = X.loc[:, X.nunique() > 1]
-            
+
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=77
             )
-            
-            # Daftar model lengkap
-            from sklearn.linear_model import LinearRegression, ElasticNet, PassiveAggressiveRegressor
-            from sklearn.svm import SVR
-            from sklearn.neighbors import KNeighborsRegressor
-            from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-            from lightgbm import LGBMRegressor
-            import xgboost as xgb
-            from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
-            import numpy as np
-            import pandas as pd
 
-            models = {
+            # Daftar semua model
+            all_models = {
                 'Linear Regression': LinearRegression(),
                 'Support Vector Regression': SVR(),
                 'K-Nearest Neighbor': KNeighborsRegressor(),
@@ -55,6 +86,13 @@ elif page == "Evaluasi Model":
                 'XGBoost': xgb.XGBRegressor(random_state=77, verbosity=0)
             }
 
+            # Pilih model yang ingin dievaluasi
+            selected_models = st.multiselect(
+                "Pilih model untuk dievaluasi:",
+                options=list(all_models.keys()),
+                default=["Random Forest", "Linear Regression"]
+            )
+
             # DataFrame hasil evaluasi
             results = pd.DataFrame(columns=[
                 'Model',
@@ -65,12 +103,13 @@ elif page == "Evaluasi Model":
                 'MAPE_in_sample', 'MAPE_out_sample'
             ])
 
-            # Training & evaluasi semua model
-            for name, model in models.items():
+            # Training & evaluasi model terpilih
+            for name in selected_models:
+                model = all_models[name]
                 try:
                     model.fit(X_train, y_train)
                     y_train_pred = model.predict(X_train)
-                    y_test_pred = model.predict(X_test)
+                    y_test_pred  = model.predict(X_test)
 
                     mse_in  = mean_squared_error(y_train, y_train_pred)
                     rmse_in = np.sqrt(mse_in)
@@ -102,5 +141,54 @@ elif page == "Evaluasi Model":
 
             # Tampilkan hasil sorted by RMSE_out_sample
             results = results.sort_values(by='RMSE_out_sample')
-            st.subheader("Hasil Evaluasi Semua Model")
+            st.subheader("Hasil Evaluasi Model")
             st.dataframe(results)
+
+# ==========================
+# Halaman 3: Prediksi
+# ==========================
+elif page == "Prediksi":
+    st.title("💡 Prediksi Harga")
+    
+    if "model_rf" not in st.session_state:
+        st.warning("⚠️ Model belum tersedia!")
+    else:
+        model_rf = st.session_state["model_rf"]
+
+        # Load feature columns
+        FEATURE_PATH = "model/feature_columns.joblib"
+        if os.path.exists(FEATURE_PATH):
+            feature_cols = joblib.load(FEATURE_PATH)
+        else:
+            st.warning("⚠️ Feature columns belum tersedia! Pastikan file 'feature_columns.joblib' ada di folder model/")
+            st.stop()
+
+        # Input variabel otomatis
+        st.subheader("Input Variabel")
+        input_data = {}
+        for col in feature_cols:
+            val = st.number_input(f"{col}", value=0.0)
+            input_data[col] = val
+        input_df = pd.DataFrame([input_data])
+
+        # Prediksi harga
+        if st.button("Prediksi Harga"):
+            try:
+                pred_harga = model_rf.predict(input_df)[0]
+                st.success(f"💰 Prediksi Harga: {pred_harga:,.2f}")
+
+                # Top-5 similarity
+                scaler = StandardScaler()
+                X_dummy = pd.DataFrame(np.random.rand(100, len(feature_cols)), columns=feature_cols)
+                X_scaled = scaler.fit_transform(X_dummy)
+                input_scaled = scaler.transform(input_df)
+                sim_matrix = cosine_similarity(X_scaled, input_scaled)
+                top5_idx = np.argsort(sim_matrix[:,0])[::-1][:5]
+                st.subheader("Top-5 Similar Data Points (Index & Score)")
+                top5_df = pd.DataFrame({
+                    "Index": top5_idx,
+                    "Similarity": sim_matrix[top5_idx,0]
+                })
+                st.dataframe(top5_df)
+            except Exception as e:
+                st.error(f"⚠️ Terjadi error saat prediksi: {e}")

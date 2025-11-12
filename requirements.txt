@@ -13,3 +13,4 @@ networkx
 pyproj
 streamlit-folium
 joblib
+openpyxl

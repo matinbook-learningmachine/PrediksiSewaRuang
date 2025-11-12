@@ -23,7 +23,7 @@ import os
 # ================================
 # 🔹 Load pre-trained model
 # ================================
-MODEL_PATH = "model_rf_hargapenawaran.joblib"
+MODEL_PATH = "model/model_rf_hargapenawaran.joblib"
 
 if os.path.exists(MODEL_PATH):
     model_rf = joblib.load(MODEL_PATH)

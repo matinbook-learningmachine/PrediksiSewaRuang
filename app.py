@@ -1,97 +1,104 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
-from streamlit_folium import folium_static
-import folium
+from sklearn.model_selection import train_test_split
 import os
 
-# ================================
-# 🔹 Load pre-trained model
-# ================================
+# Load model
 MODEL_PATH = "model/model_rf_hargapenawaran.joblib"
-
 if os.path.exists(MODEL_PATH):
     model_rf = joblib.load(MODEL_PATH)
     st.session_state["model_rf"] = model_rf
 else:
-    st.warning("⚠️ File model_rf_hargapenawaran.joblib belum ada. Harap siapkan model pre-trained.")
+    st.warning("⚠️ Model belum tersedia!")
 
-# ================================
-# 🔹 Sidebar: Upload Data
-# ================================
-st.sidebar.header("📤 Upload Data")
-uploaded_file = st.sidebar.file_uploader("Upload Excel/CSV dataset", type=["csv", "xlsx"])
+# Sidebar: pilih modul
+st.sidebar.title("📌 Navigasi")
+page = st.sidebar.radio("Pilih Halaman:", ["Beranda", "Evaluasi Model", "Prediksi"])
 
-if uploaded_file:
-    try:
-        if uploaded_file.name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
+# ==========================
+# Halaman 1: Beranda
+# ==========================
+if page == "Beranda":
+    st.title("🏠 Beranda")
+    st.markdown("""
+    Selamat datang di aplikasi Prediksi Harga Penawaran.  
+    Gunakan modul **Evaluasi Model** untuk mengecek performa model.  
+    Gunakan modul **Prediksi** untuk menghitung harga baru dari input variabel.
+    """)
+
+# ==========================
+# Halaman 2: Evaluasi Model
+# ==========================
+elif page == "Evaluasi Model":
+    st.title("📊 Evaluasi Model")
+    uploaded_file = st.file_uploader("Upload dataset CSV/XLSX dengan kolom target 'HARGAPENAWARAN'", type=["csv","xlsx"])
+    
+    if uploaded_file:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+        except Exception as e:
+            st.error(f"Gagal membaca file: {e}")
+            st.stop()
+        
+        # Cek kolom target
+        if "HARGAPENAWARAN" not in df.columns:
+            st.error("Kolom target 'HARGAPENAWARAN' tidak ditemukan!")
         else:
-            df = pd.read_excel(uploaded_file)
-        st.success("✅ Dataset berhasil diunggah!")
-        st.write("Preview Dataset:")
-        st.dataframe(df.head())
-    except Exception as e:
-        st.error(f"❌ Gagal membaca file: {e}")
-        st.stop()
+            X = df.drop(columns=["HARGAPENAWARAN"])
+            y = df["HARGAPENAWARAN"]
+            X = X.loc[:, X.nunique() > 1]
+            if "model_rf" in st.session_state:
+                model_rf = st.session_state["model_rf"]
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=77)
+                y_train_pred = model_rf.predict(X_train)
+                y_test_pred = model_rf.predict(X_test)
+                
+                results = pd.DataFrame([{
+                    'R2_in_sample': model_rf.score(X_train, y_train),
+                    'R2_out_sample': model_rf.score(X_test, y_test),
+                    'RMSE_in_sample': np.sqrt(np.mean((y_train - y_train_pred)**2)),
+                    'RMSE_out_sample': np.sqrt(np.mean((y_test - y_test_pred)**2)),
+                    'MAE_in_sample': np.mean(np.abs(y_train - y_train_pred)),
+                    'MAE_out_sample': np.mean(np.abs(y_test - y_test_pred))
+                }])
+                st.dataframe(results.T)
 
-    # ================================
-    # 🔹 Tampilkan hasil model evaluation (results)
-    # ================================
-    st.header("📊 Evaluasi Model")
-    st.info("Analisis dilakukan menggunakan Random Forest secara default.")
-
-    # Normalisasi nama kolom: hapus spasi & uppercase
-    df_columns_norm = {c.upper().replace(" ", ""): c for c in df.columns}
-    target_norm = 'HARGAPENAWARAN'
-
-    if target_norm not in df_columns_norm:
-        st.error(f"❌ Kolom target '{target_norm}' tidak ditemukan di dataset!")
+# ==========================
+# Halaman 3: Prediksi
+# ==========================
+elif page == "Prediksi":
+    st.title("💡 Prediksi Harga")
+    if "model_rf" not in st.session_state:
+        st.warning("⚠️ Model belum tersedia!")
     else:
-        target_col = df_columns_norm[target_norm]
-        X = df.drop(columns=[target_col])
-        y = df[target_col]
-        X = X.loc[:, X.nunique() > 1]
-
-        if "model_rf" in st.session_state:
-            model_rf = st.session_state["model_rf"]
-            from sklearn.model_selection import train_test_split
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=77)
-            y_train_pred = model_rf.predict(X_train)
-            y_test_pred = model_rf.predict(X_test)
-            results = pd.DataFrame([{
-                'R2_in_sample': model_rf.score(X_train, y_train),
-                'R2_out_sample': model_rf.score(X_test, y_test),
-                'RMSE_in_sample': np.sqrt(np.mean((y_train - y_train_pred)**2)),
-                'RMSE_out_sample': np.sqrt(np.mean((y_test - y_test_pred)**2)),
-                'MAE_in_sample': np.mean(np.abs(y_train - y_train_pred)),
-                'MAE_out_sample': np.mean(np.abs(y_test - y_test_pred))
-            }])
-            st.dataframe(results.T, width=600)
-
-        # ================================
-        # 🔹 Prediksi Data Baru
-        # ================================
-        st.header("💡 Prediksi Harga & Top-5 Similarity")
+        model_rf = st.session_state["model_rf"]
+        
+        # Input variabel
         st.subheader("Input Variabel")
-
+        # Contoh kolom dummy, nanti bisa diganti sesuai X asli
+        example_cols = ["Fitur1", "Fitur2", "Fitur3"]
         input_data = {}
-        for col in X.columns:
-            val = st.number_input(f"{col}", value=float(X[col].median()))
+        for col in example_cols:
+            val = st.number_input(f"{col}", value=0.0)
             input_data[col] = val
         input_df = pd.DataFrame([input_data])
-
+        
         if st.button("Prediksi Harga"):
             pred_harga = model_rf.predict(input_df)[0]
             st.success(f"💰 Prediksi Harga: {pred_harga:,.2f}")
-
+            
             # Top-5 similarity
             scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
+            # Dummy X untuk similarity, sesuaikan dengan dataset asli
+            X_dummy = pd.DataFrame(np.random.rand(100, len(example_cols)), columns=example_cols)
+            X_scaled = scaler.fit_transform(X_dummy)
             input_scaled = scaler.transform(input_df)
             sim_matrix = cosine_similarity(X_scaled, input_scaled)
             top5_idx = np.argsort(sim_matrix[:,0])[::-1][:5]
@@ -101,31 +108,3 @@ if uploaded_file:
                 "Similarity": sim_matrix[top5_idx,0]
             })
             st.dataframe(top5_df)
-
-        # ================================
-        # 🔹 Fitur Koordinat Baru
-        # ================================
-        st.header("📍 Analisis Koordinat Baru")
-        if 'LATITUDE' not in df.columns or 'LONGITUDE' not in df.columns:
-            st.warning("⚠️ Kolom 'LATITUDE' atau 'LONGITUDE' tidak ditemukan di dataset!")
-        else:
-            lat = st.number_input("Latitude", value=float(df['LATITUDE'].median()))
-            lon = st.number_input("Longitude", value=float(df['LONGITUDE'].median()))
-
-            if st.button("Hitung Jarak & Landuse"):
-                try:
-                    from my_osm_functions import visualisasi_peta_adaptif_network, summary_koordinat_v5_7
-
-                    tmp_df = pd.DataFrame([{'LATITUDE': lat, 'LONGITUDE': lon}])
-                    m, hasil_df, df_detect = visualisasi_peta_adaptif_network(
-                        tmp_df, summary_koordinat_v5_7=summary_koordinat_v5_7
-                    )
-                    st.write("Hasil jarak ke jalan:")
-                    st.dataframe(hasil_df[['LATITUDE','LONGITUDE','Jarak_ke_JalanUtama','Jarak_ke_JalanSekunder']])
-                    st.write("Landuse / POI info:")
-                    st.dataframe(df_detect)
-
-                    st.subheader("🗺️ Peta Interaktif")
-                    folium_static(m)
-                except Exception as e:
-                    st.error(f"❌ Gagal menghitung jarak/landuse: {e}")

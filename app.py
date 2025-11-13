@@ -30,7 +30,7 @@ else:
 st.sidebar.title("📌 Navigasi")
 page = st.sidebar.radio(
     "Pilih Halaman:",
-    ["Beranda", "Evaluasi Model", "Prediksi", "Model Dasar Prediksi"]
+    ["Beranda", "Evaluasi Model", "Model Dasar Prediksi", "Prediksi"]
 )
 
 # ==========================

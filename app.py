@@ -153,13 +153,13 @@ elif page == "Evaluasi Model":
 elif page == "Model Dasar Prediksi":
     st.title("📈 Model Dasar Prediksi")
 
-    # Load hasil evaluasi yang sudah disimpan (joblib atau csv)
+    # Load hasil evaluasi yang sudah disimpan (joblib)
     EVAL_PATH = "model/results_evaluation.joblib"  # file hasil evaluasi model sebelumnya
     if os.path.exists(EVAL_PATH):
         results_eval = joblib.load(EVAL_PATH)
         st.success(f"📥 Hasil evaluasi berhasil dimuat! ({results_eval.shape[0]} baris x {results_eval.shape[1]} kolom)")
     else:
-        st.warning("⚠️ Hasil evaluasi belum tersedia. Harap jalankan training model atau simpan results_evaluation.joblib di folder model/")
+        st.warning("⚠️ Hasil evaluasi belum tersedia. Harap simpan results_evaluation.joblib di folder model/")
         st.stop()
 
     # Urutkan berdasarkan RMSE out-sample
@@ -169,39 +169,91 @@ elif page == "Model Dasar Prediksi":
     # 1️⃣ Tabel interaktif
     # ==========================
     st.subheader("Tabel Hasil Evaluasi Model")
-    st.dataframe(results_eval.style.format({
-        'R2_in_sample': '{:.3f}',
-        'R2_out_sample': '{:.3f}',
-        'MSE_in_sample': '{:,.0f}',
-        'MSE_out_sample': '{:,.0f}',
-        'RMSE_in_sample': '{:,.0f}',
-        'RMSE_out_sample': '{:,.0f}',
-        'MAE_in_sample': '{:,.0f}',
-        'MAE_out_sample': '{:,.0f}',
-        'MAPE_in_sample': '{:.2%}',
-        'MAPE_out_sample': '{:.2%}'
-    }).background_gradient(cmap='viridis', subset=['RMSE_out_sample', 'R2_out_sample'])))
+    st.dataframe(
+        results_eval.style.format({
+            'R2_in_sample': '{:.3f}',
+            'R2_out_sample': '{:.3f}',
+            'MSE_in_sample': '{:,.0f}',
+            'MSE_out_sample': '{:,.0f}',
+            'RMSE_in_sample': '{:,.0f}',
+            'RMSE_out_sample': '{:,.0f}',
+            'MAE_in_sample': '{:,.0f}',
+            'MAE_out_sample': '{:,.0f}',
+            'MAPE_in_sample': '{:.2%}',
+            'MAPE_out_sample': '{:.2%}'
+        }).background_gradient(cmap='plasma', subset=['R2_in_sample','R2_out_sample'])
+          .background_gradient(cmap='viridis', subset=['RMSE_in_sample','RMSE_out_sample','MAE_in_sample','MAE_out_sample','MAPE_in_sample','MAPE_out_sample'])
+    )
 
     # ==========================
-    # 2️⃣ Chart RMSE & R² Out-Sample
+    # 2️⃣ Keterangan indikator rinci
     # ==========================
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+    st.markdown("""
+**📌 Keterangan Rinci Indikator Evaluasi Model:**  
 
-    st.subheader("RMSE Out-Sample per Model")
-    fig, ax = plt.subplots(figsize=(10,6))
-    sns.barplot(x='RMSE_out_sample', y='Model', data=results_eval, palette='viridis', ax=ax)
-    for index, value in enumerate(results_eval['RMSE_out_sample']):
-        ax.text(value, index, f'{value:,.0f}', va='center', fontsize=10)
-    st.pyplot(fig)
+1. **R² (R-squared) 📈**  
+   - Menunjukkan seberapa baik model menjelaskan variasi target.  
+   - Nilai berkisar 0–1:
+     - ≥0.9 → sangat baik
+     - 0.7–0.9 → baik
+     - 0.5–0.7 → sedang
+     - <0.5 → kurang baik
+   - R² negatif → model lebih buruk daripada prediksi mean.
 
-    st.subheader("R² Out-Sample per Model")
-    fig2, ax2 = plt.subplots(figsize=(10,6))
-    sns.barplot(x='R2_out_sample', y='Model', data=results_eval, palette='magma', ax=ax2)
-    for index, value in enumerate(results_eval['R2_out_sample']):
-        ax2.text(value, index, f'{value:.2f}', va='center', fontsize=10)
-    st.pyplot(fig2)
+2. **MSE (Mean Squared Error) 💥**  
+   - Rata-rata kuadrat selisih prediksi dengan nilai aktual.  
+   - Semakin kecil → semakin akurat.  
+   - Satuan = kuadrat target, misal target juta → MSE juta².
 
+3. **RMSE (Root Mean Squared Error) 🌟**  
+   - Akar dari MSE, satuan sama dengan target.  
+   - Semakin kecil → prediksi lebih dekat ke nilai aktual.
+
+4. **MAE (Mean Absolute Error) ✨**  
+   - Rata-rata absolut error prediksi.  
+   - Semakin kecil → prediksi lebih akurat.
+
+5. **MAPE (Mean Absolute Percentage Error) 📊**  
+   - Persentase error absolut rata-rata terhadap nilai aktual.  
+   - Semakin kecil → prediksi lebih akurat.  
+   - Contoh: MAPE 0.10 → rata-rata prediksi meleset 10% dari nilai asli.
+
+**🎨 Warna tabel:**  
+- R² → plasma (semakin gelap = semakin baik)  
+- RMSE / MAE / MAPE → viridis (semakin gelap = error semakin besar)
+
+**💡 Tips membaca tabel:**  
+- Fokus pada R²_out_sample tinggi + RMSE_out_sample rendah → model terbaik.  
+- Periksa juga MAE & MAPE untuk interpretasi realistis.  
+- Bandingkan in-sample vs out-sample untuk mendeteksi overfitting.
+""")
+
+    # ==========================
+    # 3️⃣ Interpretasi per model
+    # ==========================
+    st.markdown("### 📝 Interpretasi Hasil Setiap Model")
+    for idx, row in results_eval.iterrows():
+        model = row['Model']
+        r2_out = row['R2_out_sample']
+        rmse_out = row['RMSE_out_sample']
+        mae_out = row['MAE_out_sample']
+        mape_out = row['MAPE_out_sample']
+        
+        # Analisis singkat
+        if r2_out >= 0.9 and rmse_out < results_eval['RMSE_out_sample'].median():
+            interpretasi = "Performa sangat baik: R² tinggi dan error rendah."
+        elif r2_out >= 0.7:
+            interpretasi = "Performa baik: R² cukup tinggi, error moderat."
+        elif r2_out >= 0.5:
+            interpretasi = "Performa sedang: R² sedang, perhatikan error."
+        else:
+            interpretasi = "Performa kurang baik: R² rendah, prediksi kemungkinan kurang akurat."
+        
+        # Tambahkan catatan overfitting
+        if row['R2_in_sample'] - r2_out > 0.2:
+            interpretasi += " ⚠️ Kemungkinan overfitting (R² in-sample jauh lebih tinggi)."
+        
+        st.markdown(f"**{model}**: R²_out = {r2_out:.3f}, RMSE_out = {rmse_out:,.0f}, MAE = {mae_out:,.0f}, MAPE = {mape_out:.2%} → {interpretasi}")
 
 
 # ==========================

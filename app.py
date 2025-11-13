@@ -148,96 +148,60 @@ elif page == "Evaluasi Model":
             st.dataframe(results)
 
 # ==========================
-# Halaman 3: Model Dasar Prediksi (GitHub)
+# Halaman 3: Model Dasar Prediksi
 # ==========================
 elif page == "Model Dasar Prediksi":
     st.title("📈 Model Dasar Prediksi")
 
-    # Ganti <username> dan <repo> dengan akun GitHub dan repo-mu
-    GITHUB_URL = "https://raw.githubusercontent.com/matinbook-learningmachine/PrediksiSewaRuang/main/datamodelprediksi.xlsx"
-
-
-    try:
-        df_eval = pd.read_excel(GITHUB_URL)
-        st.success(f"📥 Dataset berhasil dimuat dari GitHub! ({df_eval.shape[0]} baris x {df_eval.shape[1]} kolom)")
-    except Exception as e:
-        st.error(f"⚠️ Gagal memuat file dari GitHub: {e}")
+    # Load hasil evaluasi yang sudah disimpan (joblib atau csv)
+    EVAL_PATH = "model/results_evaluation.joblib"  # file hasil evaluasi model sebelumnya
+    if os.path.exists(EVAL_PATH):
+        results_eval = joblib.load(EVAL_PATH)
+        st.success(f"📥 Hasil evaluasi berhasil dimuat! ({results_eval.shape[0]} baris x {results_eval.shape[1]} kolom)")
+    else:
+        st.warning("⚠️ Hasil evaluasi belum tersedia. Harap jalankan training model atau simpan results_evaluation.joblib di folder model/")
         st.stop()
 
-    if "HARGAPENAWARAN" not in df_eval.columns:
-        st.error("Kolom target 'HARGAPENAWARAN' tidak ditemukan!")
-        st.stop()
+    # Urutkan berdasarkan RMSE out-sample
+    results_eval = results_eval.sort_values(by='RMSE_out_sample', ascending=True)
 
-    # Persiapan data
-    target = "HARGAPENAWARAN"
-    X = df_eval.drop(columns=[target])
-    y = df_eval[target]
+    # ==========================
+    # 1️⃣ Tabel interaktif
+    # ==========================
+    st.subheader("Tabel Hasil Evaluasi Model")
+    st.dataframe(results_eval.style.format({
+        'R2_in_sample': '{:.3f}',
+        'R2_out_sample': '{:.3f}',
+        'MSE_in_sample': '{:,.0f}',
+        'MSE_out_sample': '{:,.0f}',
+        'RMSE_in_sample': '{:,.0f}',
+        'RMSE_out_sample': '{:,.0f}',
+        'MAE_in_sample': '{:,.0f}',
+        'MAE_out_sample': '{:,.0f}',
+        'MAPE_in_sample': '{:.2%}',
+        'MAPE_out_sample': '{:.2%}'
+    }).background_gradient(cmap='viridis', subset=['RMSE_out_sample', 'R2_out_sample'])))
 
-    X = X.loc[:, X.nunique() > 1]
+    # ==========================
+    # 2️⃣ Chart RMSE & R² Out-Sample
+    # ==========================
+    import matplotlib.pyplot as plt
+    import seaborn as sns
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=77
-    )
+    st.subheader("RMSE Out-Sample per Model")
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.barplot(x='RMSE_out_sample', y='Model', data=results_eval, palette='viridis', ax=ax)
+    for index, value in enumerate(results_eval['RMSE_out_sample']):
+        ax.text(value, index, f'{value:,.0f}', va='center', fontsize=10)
+    st.pyplot(fig)
 
-    # Daftar model lengkap
-    models = {
-        'Linear Regression': LinearRegression(),
-        'Support Vector Regression': SVR(),
-        'K-Nearest Neighbor': KNeighborsRegressor(),
-        'Elastic Net': ElasticNet(random_state=77),
-        'Passive Aggressive Regressor': PassiveAggressiveRegressor(random_state=77),
-        'Random Forest': RandomForestRegressor(random_state=77),
-        'Gradient Boosting': GradientBoostingRegressor(random_state=77),
-        'LightGBM': LGBMRegressor(random_state=77),
-        'XGBoost': xgb.XGBRegressor(random_state=77, verbosity=0)
-    }
+    st.subheader("R² Out-Sample per Model")
+    fig2, ax2 = plt.subplots(figsize=(10,6))
+    sns.barplot(x='R2_out_sample', y='Model', data=results_eval, palette='magma', ax=ax2)
+    for index, value in enumerate(results_eval['R2_out_sample']):
+        ax2.text(value, index, f'{value:.2f}', va='center', fontsize=10)
+    st.pyplot(fig2)
 
-    results_eval = pd.DataFrame(columns=[
-        'Model',
-        'R2_in_sample', 'R2_out_sample',
-        'MSE_in_sample', 'MSE_out_sample',
-        'RMSE_in_sample', 'RMSE_out_sample',
-        'MAE_in_sample', 'MAE_out_sample',
-        'MAPE_in_sample', 'MAPE_out_sample'
-    ])
-
-    for name, model in models.items():
-        try:
-            model.fit(X_train, y_train)
-            y_train_pred = model.predict(X_train)
-            y_test_pred  = model.predict(X_test)
-
-            mse_in  = mean_squared_error(y_train, y_train_pred)
-            rmse_in = np.sqrt(mse_in)
-            mae_in  = mean_absolute_error(y_train, y_train_pred)
-            mape_in = mean_absolute_percentage_error(y_train, y_train_pred)
-            r2_in   = r2_score(y_train, y_train_pred)
-
-            mse_out  = mean_squared_error(y_test, y_test_pred)
-            rmse_out = np.sqrt(mse_out)
-            mae_out  = mean_absolute_error(y_test, y_test_pred)
-            mape_out = mean_absolute_percentage_error(y_test, y_test_pred)
-            r2_out   = r2_score(y_test, y_test_pred)
-
-            results_eval = pd.concat([results_eval, pd.DataFrame([{
-                'Model': name,
-                'R2_in_sample': r2_in,
-                'R2_out_sample': r2_out,
-                'MSE_in_sample': mse_in,
-                'MSE_out_sample': mse_out,
-                'RMSE_in_sample': rmse_in,
-                'RMSE_out_sample': rmse_out,
-                'MAE_in_sample': mae_in,
-                'MAE_out_sample': mae_out,
-                'MAPE_in_sample': mape_in,
-                'MAPE_out_sample': mape_out
-            }])], ignore_index=True)
-        except Exception as e:
-            st.warning(f"⚠️ Model {name} gagal dijalankan: {e}")
-
-    results_eval = results_eval.sort_values(by='RMSE_out_sample')
-    st.subheader("Hasil Evaluasi Dasar Semua Model")
-    st.dataframe(results_eval)
 
 
 # ==========================

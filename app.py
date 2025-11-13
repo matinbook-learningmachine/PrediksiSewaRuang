@@ -28,7 +28,10 @@ else:
 # Sidebar Navigasi
 # ==========================
 st.sidebar.title("📌 Navigasi")
-page = st.sidebar.radio("Pilih Halaman:", ["Beranda", "Evaluasi Model", "Prediksi"])
+page = st.sidebar.radio(
+    "Pilih Halaman:",
+    ["Beranda", "Evaluasi Model", "Prediksi", "Model Dasar Prediksi"]
+)
 
 # ==========================
 # Halaman 1: Beranda
@@ -192,3 +195,94 @@ elif page == "Prediksi":
                 st.dataframe(top5_df)
             except Exception as e:
                 st.error(f"⚠️ Terjadi error saat prediksi: {e}")
+
+# ==========================
+# Halaman 4: Model Dasar Prediksi (GitHub)
+# ==========================
+elif page == "Model Dasar Prediksi":
+    st.title("📈 Model Dasar Prediksi")
+
+    # Ganti <username> dan <repo> dengan akun GitHub dan repo-mu
+    GITHUB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/datamodelprediksi.xlsx"
+
+    try:
+        df_eval = pd.read_excel(GITHUB_URL)
+        st.success(f"📥 Dataset berhasil dimuat dari GitHub! ({df_eval.shape[0]} baris x {df_eval.shape[1]} kolom)")
+    except Exception as e:
+        st.error(f"⚠️ Gagal memuat file dari GitHub: {e}")
+        st.stop()
+
+    if "HARGAPENAWARAN" not in df_eval.columns:
+        st.error("Kolom target 'HARGAPENAWARAN' tidak ditemukan!")
+        st.stop()
+
+    # Persiapan data
+    target = "HARGAPENAWARAN"
+    X = df_eval.drop(columns=[target])
+    y = df_eval[target]
+
+    X = X.loc[:, X.nunique() > 1]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=77
+    )
+
+    # Daftar model lengkap
+    models = {
+        'Linear Regression': LinearRegression(),
+        'Support Vector Regression': SVR(),
+        'K-Nearest Neighbor': KNeighborsRegressor(),
+        'Elastic Net': ElasticNet(random_state=77),
+        'Passive Aggressive Regressor': PassiveAggressiveRegressor(random_state=77),
+        'Random Forest': RandomForestRegressor(random_state=77),
+        'Gradient Boosting': GradientBoostingRegressor(random_state=77),
+        'LightGBM': LGBMRegressor(random_state=77),
+        'XGBoost': xgb.XGBRegressor(random_state=77, verbosity=0)
+    }
+
+    results_eval = pd.DataFrame(columns=[
+        'Model',
+        'R2_in_sample', 'R2_out_sample',
+        'MSE_in_sample', 'MSE_out_sample',
+        'RMSE_in_sample', 'RMSE_out_sample',
+        'MAE_in_sample', 'MAE_out_sample',
+        'MAPE_in_sample', 'MAPE_out_sample'
+    ])
+
+    for name, model in models.items():
+        try:
+            model.fit(X_train, y_train)
+            y_train_pred = model.predict(X_train)
+            y_test_pred  = model.predict(X_test)
+
+            mse_in  = mean_squared_error(y_train, y_train_pred)
+            rmse_in = np.sqrt(mse_in)
+            mae_in  = mean_absolute_error(y_train, y_train_pred)
+            mape_in = mean_absolute_percentage_error(y_train, y_train_pred)
+            r2_in   = r2_score(y_train, y_train_pred)
+
+            mse_out  = mean_squared_error(y_test, y_test_pred)
+            rmse_out = np.sqrt(mse_out)
+            mae_out  = mean_absolute_error(y_test, y_test_pred)
+            mape_out = mean_absolute_percentage_error(y_test, y_test_pred)
+            r2_out   = r2_score(y_test, y_test_pred)
+
+            results_eval = pd.concat([results_eval, pd.DataFrame([{
+                'Model': name,
+                'R2_in_sample': r2_in,
+                'R2_out_sample': r2_out,
+                'MSE_in_sample': mse_in,
+                'MSE_out_sample': mse_out,
+                'RMSE_in_sample': rmse_in,
+                'RMSE_out_sample': rmse_out,
+                'MAE_in_sample': mae_in,
+                'MAE_out_sample': mae_out,
+                'MAPE_in_sample': mape_in,
+                'MAPE_out_sample': mape_out
+            }])], ignore_index=True)
+        except Exception as e:
+            st.warning(f"⚠️ Model {name} gagal dijalankan: {e}")
+
+    results_eval = results_eval.sort_values(by='RMSE_out_sample')
+    st.subheader("Hasil Evaluasi Dasar Semua Model")
+    st.dataframe(results_eval)

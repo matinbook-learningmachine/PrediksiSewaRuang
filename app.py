@@ -148,62 +148,14 @@ elif page == "Evaluasi Model":
             st.dataframe(results)
 
 # ==========================
-# Halaman 3: Prediksi
-# ==========================
-elif page == "Prediksi":
-    st.title("💡 Prediksi Harga")
-    
-    if "model_rf" not in st.session_state:
-        st.warning("⚠️ Model belum tersedia!")
-    else:
-        model_rf = st.session_state["model_rf"]
-
-        # Load feature columns
-        FEATURE_PATH = "model/feature_columns.joblib"
-        if os.path.exists(FEATURE_PATH):
-            feature_cols = joblib.load(FEATURE_PATH)
-        else:
-            st.warning("⚠️ Feature columns belum tersedia! Pastikan file 'feature_columns.joblib' ada di folder model/")
-            st.stop()
-
-        # Input variabel otomatis
-        st.subheader("Input Variabel")
-        input_data = {}
-        for col in feature_cols:
-            val = st.number_input(f"{col}", value=0.0)
-            input_data[col] = val
-        input_df = pd.DataFrame([input_data])
-
-        # Prediksi harga
-        if st.button("Prediksi Harga"):
-            try:
-                pred_harga = model_rf.predict(input_df)[0]
-                st.success(f"💰 Prediksi Harga: {pred_harga:,.2f}")
-
-                # Top-5 similarity
-                scaler = StandardScaler()
-                X_dummy = pd.DataFrame(np.random.rand(100, len(feature_cols)), columns=feature_cols)
-                X_scaled = scaler.fit_transform(X_dummy)
-                input_scaled = scaler.transform(input_df)
-                sim_matrix = cosine_similarity(X_scaled, input_scaled)
-                top5_idx = np.argsort(sim_matrix[:,0])[::-1][:5]
-                st.subheader("Top-5 Similar Data Points (Index & Score)")
-                top5_df = pd.DataFrame({
-                    "Index": top5_idx,
-                    "Similarity": sim_matrix[top5_idx,0]
-                })
-                st.dataframe(top5_df)
-            except Exception as e:
-                st.error(f"⚠️ Terjadi error saat prediksi: {e}")
-
-# ==========================
-# Halaman 4: Model Dasar Prediksi (GitHub)
+# Halaman 3: Model Dasar Prediksi (GitHub)
 # ==========================
 elif page == "Model Dasar Prediksi":
     st.title("📈 Model Dasar Prediksi")
 
     # Ganti <username> dan <repo> dengan akun GitHub dan repo-mu
-    GITHUB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/datamodelprediksi.xlsx"
+    GITHUB_URL = "GITHUB_URL = "https://raw.githubusercontent.com/matinbook-learningmachine/PrediksiSewaRuang/main/datamodelprediksi.xlsx"
+
 
     try:
         df_eval = pd.read_excel(GITHUB_URL)
@@ -286,3 +238,55 @@ elif page == "Model Dasar Prediksi":
     results_eval = results_eval.sort_values(by='RMSE_out_sample')
     st.subheader("Hasil Evaluasi Dasar Semua Model")
     st.dataframe(results_eval)
+
+
+# ==========================
+# Halaman 4: Prediksi
+# ==========================
+elif page == "Prediksi":
+    st.title("💡 Prediksi Harga")
+    
+    if "model_rf" not in st.session_state:
+        st.warning("⚠️ Model belum tersedia!")
+    else:
+        model_rf = st.session_state["model_rf"]
+
+        # Load feature columns
+        FEATURE_PATH = "model/feature_columns.joblib"
+        if os.path.exists(FEATURE_PATH):
+            feature_cols = joblib.load(FEATURE_PATH)
+        else:
+            st.warning("⚠️ Feature columns belum tersedia! Pastikan file 'feature_columns.joblib' ada di folder model/")
+            st.stop()
+
+        # Input variabel otomatis
+        st.subheader("Input Variabel")
+        input_data = {}
+        for col in feature_cols:
+            val = st.number_input(f"{col}", value=0.0)
+            input_data[col] = val
+        input_df = pd.DataFrame([input_data])
+
+        # Prediksi harga
+        if st.button("Prediksi Harga"):
+            try:
+                pred_harga = model_rf.predict(input_df)[0]
+                st.success(f"💰 Prediksi Harga: {pred_harga:,.2f}")
+
+                # Top-5 similarity
+                scaler = StandardScaler()
+                X_dummy = pd.DataFrame(np.random.rand(100, len(feature_cols)), columns=feature_cols)
+                X_scaled = scaler.fit_transform(X_dummy)
+                input_scaled = scaler.transform(input_df)
+                sim_matrix = cosine_similarity(X_scaled, input_scaled)
+                top5_idx = np.argsort(sim_matrix[:,0])[::-1][:5]
+                st.subheader("Top-5 Similar Data Points (Index & Score)")
+                top5_df = pd.DataFrame({
+                    "Index": top5_idx,
+                    "Similarity": sim_matrix[top5_idx,0]
+                })
+                st.dataframe(top5_df)
+            except Exception as e:
+                st.error(f"⚠️ Terjadi error saat prediksi: {e}")
+
+

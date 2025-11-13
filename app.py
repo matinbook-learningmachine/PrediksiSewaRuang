@@ -154,7 +154,7 @@ elif page == "Model Dasar Prediksi":
     st.title("📈 Model Dasar Prediksi")
 
     # Ganti <username> dan <repo> dengan akun GitHub dan repo-mu
-    GITHUB_URL = "GITHUB_URL = "https://raw.githubusercontent.com/matinbook-learningmachine/PrediksiSewaRuang/main/datamodelprediksi.xlsx"
+    GITHUB_URL = "https://raw.githubusercontent.com/matinbook-learningmachine/PrediksiSewaRuang/main/datamodelprediksi.xlsx"
 
 
     try:
